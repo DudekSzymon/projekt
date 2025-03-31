@@ -119,4 +119,8 @@
   body {
     @apply bg-background text-foreground;
   }
+  [data-nextjs-dev-tools-button="true"],
+[aria-label="Open Next.js Dev Tools"] {
+  display: none !important;
+}
 }
