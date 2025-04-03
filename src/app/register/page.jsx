@@ -1,7 +1,6 @@
-import { GalleryVerticalEnd } from "lucide-react"
-import { LoginForm } from "@/components/login-form"
+import { RegisterForm } from "@/components/register-form"
 
-export default function LoginPage() {
+export default function Page() {
   return (
     <div className="grid min-h-svh lg:grid-cols-2" style={{ backgroundColor: "hsl(0, 0%, 3.9%)" }}>
       <div className="relative hidden lg:block" style={{ backgroundColor: "hsl(0, 0%, 3.9%)" }}>
@@ -18,7 +17,7 @@ export default function LoginPage() {
           </p>
         </div>
         <img
-          src="images/surgeon.jpeg"
+          src="/images/surgeon.jpeg"
           alt="Image"
           className="absolute inset-0 h-full w-full object-cover brightness-[0.4] dark:brightness-[0.2] dark:grayscale" />
       </div>
@@ -26,7 +25,7 @@ export default function LoginPage() {
       <div className="flex flex-col gap-4 p-6 md:p-10" style={{ backgroundColor: "hsl(0, 0%, 3.9%)" }}>
         <div className="flex flex-1 items-center justify-center">
           <div className="w-full max-w-xs">
-            <LoginForm />
+            <RegisterForm />
           </div>
         </div>
       </div>

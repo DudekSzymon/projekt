@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
+import { useRouter } from "next/navigation"
 import {
   Form,
   FormControl,
@@ -16,6 +17,7 @@ import {
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
+import Link from "next/link"
 
 // Definiowanie schematu walidacji
 const formSchema = z.object({
@@ -27,6 +29,8 @@ const formSchema = z.object({
 })
 
 export function LoginForm({ className, ...props }) {
+  const router = useRouter()
+  
   // Inicjalizacja formularza z react-hook-form
   const form = useForm({
     resolver: zodResolver(formSchema),
@@ -41,6 +45,10 @@ export function LoginForm({ className, ...props }) {
   function onSubmit(values) {
     console.log(values)
     // Tutaj dodaj logikę logowania
+  }
+
+  const navigateToRegister = () => {
+    router.push("/register")
   }
 
   return (
@@ -65,7 +73,7 @@ export function LoginForm({ className, ...props }) {
                     type="email" 
                     placeholder="E-mail" 
                     {...field} 
-                    className="bg-black border-white text-white placeholder:text-gray-400" 
+                    className="border-white text-white placeholder:text-gray-400 " 
                   />
                 </FormControl>
                 <FormMessage className="text-white" />
@@ -84,7 +92,7 @@ export function LoginForm({ className, ...props }) {
                     type="password" 
                     placeholder="Hasło" 
                     {...field} 
-                    className="bg-black border-white text-white placeholder:text-gray-400" 
+                    className="border-white text-white placeholder:text-gray-400" 
                   />
                 </FormControl>
                 <FormMessage className="text-white" />
@@ -95,7 +103,7 @@ export function LoginForm({ className, ...props }) {
             control={form.control}
             name="terms"
             render={({ field }) => (
-              <FormItem className="items-top flex space-x-3 border border-white rounded p-3 bg-black">
+              <FormItem className="items-top flex space-x-3 border border-white rounded p-3">
                 <FormControl>
                   <Checkbox 
                     id="terms" 
@@ -119,9 +127,9 @@ export function LoginForm({ className, ...props }) {
         </div>
         <div className="text-center text-sm text-white">
           Nie posiadasz konta?{" "}
-          <a href="#" className="text-white underline underline-offset-4">
+          <Link href="/register" className="text-white underline underline-offset-4">
             Utwórz konto
-          </a>
+          </Link>
         </div>
         <div className="text-center text-sm text-white">
           Zapomniałeś hasła?{" "}
