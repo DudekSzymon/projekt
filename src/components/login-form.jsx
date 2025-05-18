@@ -55,7 +55,7 @@ export function LoginForm({ className, ...props }) {
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className={cn("flex flex-col gap-6 text-white", className)} {...props}>
         <div className="flex flex-col items-center gap-2 text-center">
-          <h1 className="text-2xl font-bold text-white">Witamy w Neuvero Med!</h1>
+          <h1 className="text-2xl font-bold text-white">Witamy w AutoRent!</h1>
           <p className="text-white text-sm text-balance">
             Wprowadź swój adres email i hasło
           </p>

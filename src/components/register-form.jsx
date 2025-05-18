@@ -56,7 +56,7 @@ export function RegisterForm({ className, ...props }) {
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className={cn("flex flex-col gap-6 text-white", className)} {...props}>
         <div className="flex flex-col items-center gap-2 text-center">
-          <h1 className="text-2xl font-bold text-white">Zarejestruj się w Neuvero Med!</h1>
+          <h1 className="text-2xl font-bold text-white">Zarejestruj się w SpellBudex!</h1>
         </div>
         <div className="grid gap-6">
           <div className="grid grid-cols-2 gap-4">
