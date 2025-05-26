@@ -9,13 +9,14 @@ import {
   NavigationMenuLink,
 } from "@/components/ui/navigation-menu"
 import Link from "next/link"
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import axios from 'axios'
 
 const API_BASE_URL = 'http://localhost:8000';
 
 export default function ReservationPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const equipmentId = searchParams.get('equipment');
   
   // Form state
@@ -42,17 +43,6 @@ export default function ReservationPage() {
   const [user, setUser] = useState(null);
   const [error, setError] = useState('');
   
-  // Lokalizacje dostaw
-  const locations = [
-    { id: 'warszawa', name: 'Warszawa - Centrum' },
-    { id: 'warszawa_mokotow', name: 'Warszawa - Mokotów' },
-    { id: 'krakow', name: 'Kraków - Centrum' },
-    { id: 'gdansk', name: 'Gdańsk' },
-    { id: 'poznan', name: 'Poznań' },
-    { id: 'wroclaw', name: 'Wrocław' },
-    { id: 'katowice', name: 'Katowice' },
-  ];
-  
   // Sprawdź czy użytkownik jest zalogowany
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -62,28 +52,33 @@ export default function ReservationPage() {
   }, []);
   
   // Pobierz dane użytkownika
-  const fetchUserInfo = async (token) => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/api/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setUser(response.data);
-      // Wypełnij dane użytkownika
-      setFormData(prev => ({
-        ...prev,
-        firstName: response.data.name.split(' ')[0] || '',
-        lastName: response.data.name.split(' ').slice(1).join(' ') || '',
-        email: response.data.email,
-        phone: response.data.phone,
-        company: response.data.company,
-        nip: response.data.nip,
-        address: response.data.address
-      }));
-    } catch (error) {
-      console.error('Błąd pobierania danych użytkownika:', error);
-      localStorage.removeItem('token');
-    }
-  };
+const fetchUserInfo = async (token) => {
+  try {
+    const response = await axios.get(`${API_BASE_URL}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    setUser(response.data);
+    
+    // Wypełnij dane użytkownika - ale pozwól na edycję jeśli są niepełne
+    const userData = response.data;
+    const nameParts = userData.name?.split(' ') || ['', ''];
+    
+    setFormData(prev => ({
+      ...prev,
+      firstName: nameParts[0] || '',
+      lastName: nameParts.slice(1).join(' ') || '',
+      email: userData.email || '',
+      phone: userData.phone || '', // Może być puste z Google
+      company: userData.company || '', // Może być puste z Google
+      nip: userData.nip || '',
+      address: userData.address || '' // Może być puste z Google
+    }));
+  } catch (error) {
+    console.error('Błąd pobierania danych użytkownika:', error);
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+  }
+};
   
   // Pobierz sprzęt z API
   useEffect(() => {
@@ -162,7 +157,7 @@ export default function ReservationPage() {
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
   };
   
-  // Wysyłanie rezerwacji
+  // Wysyłanie rezerwacji - ZAKTUALIZOWANE Z PRZEKIEROWANIEM NA PŁATNOŚĆ
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
@@ -192,6 +187,7 @@ export default function ReservationPage() {
         });
         
         localStorage.setItem('token', loginResponse.data.access_token);
+        localStorage.setItem('user', JSON.stringify(loginResponse.data.user));
         setUser(loginResponse.data.user);
       }
       
@@ -208,14 +204,22 @@ export default function ReservationPage() {
         headers: { Authorization: `Bearer ${currentToken}` }
       });
       
-      // Sukces!
-      alert(`Rezerwacja została złożona pomyślnie! 
-Numer umowy: ${response.data.contract_number}
-Koszt całkowity: ${response.data.total_cost} zł
-Sprawdź email w celu potwierdzenia.`);
+      // Sukces! - ZMIENIONE PRZEKIEROWANIE
+      const reservationId = response.data.id;
+      const contractNumber = response.data.contract_number;
+      const totalCost = response.data.total_cost;
       
-      // Przekieruj do strony głównej lub dashboardu
-      window.location.href = '/';
+      // Pokaż komunikat sukcesu
+      alert(`🎉 Rezerwacja została złożona pomyślnie!
+
+📋 Numer umowy: ${contractNumber}
+💰 Koszt całkowity: ${totalCost} zł
+🏗️ Sprzęt: ${selectedEquipment.name}
+
+Teraz zostaniesz przekierowany do bezpiecznej płatności Stripe.`);
+      
+      // Przekieruj na stronę płatności zamiast na główną
+      router.push(`/payment/${reservationId}`);
       
     } catch (error) {
       console.error('Błąd podczas składania rezerwacji:', error);
@@ -395,6 +399,17 @@ Sprawdź email w celu potwierdzenia.`);
                 </p>
               </div>
             )}
+
+            {/* Dodana informacja dla użytkowników Google */}
+            {user && (
+              <div className="bg-green-500/20 border border-green-500/30 rounded-lg p-4 mb-6">
+                <p className="text-green-200 text-sm">
+                  ✅ Zalogowano przez Google jako <strong>{user.email}</strong>
+                  <br />
+                  💡 Uzupełnij brakujące dane (telefon, firma, adres) aby kontynuować.
+                </p>
+              </div>
+            )}
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
@@ -404,8 +419,8 @@ Sprawdź email w celu potwierdzenia.`);
                   name="firstName"
                   value={formData.firstName}
                   onChange={handleChange}
-                  disabled={!!user}
-                  className="w-full p-3 rounded-lg bg-black/60 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-white disabled:opacity-50"
+                  // USUNIĘTE: disabled={!!user}
+                  className="w-full p-3 rounded-lg bg-black/60 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-white"
                   required
                 />
               </div>
@@ -417,8 +432,8 @@ Sprawdź email w celu potwierdzenia.`);
                   name="lastName"
                   value={formData.lastName}
                   onChange={handleChange}
-                  disabled={!!user}
-                  className="w-full p-3 rounded-lg bg-black/60 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-white disabled:opacity-50"
+                  // USUNIĘTE: disabled={!!user}
+                  className="w-full p-3 rounded-lg bg-black/60 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-white"
                   required
                 />
               </div>
@@ -430,10 +445,13 @@ Sprawdź email w celu potwierdzenia.`);
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
-                  disabled={!!user}
+                  disabled={!!user} // POZOSTAWIONE - email z Google nie powinien być edytowalny
                   className="w-full p-3 rounded-lg bg-black/60 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-white disabled:opacity-50"
                   required
                 />
+                {user && (
+                  <p className="text-white/60 text-xs mt-1">Email z konta Google - nie można edytować</p>
+                )}
               </div>
               
               <div>
@@ -443,8 +461,9 @@ Sprawdź email w celu potwierdzenia.`);
                   name="phone"
                   value={formData.phone}
                   onChange={handleChange}
-                  disabled={!!user}
-                  className="w-full p-3 rounded-lg bg-black/60 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-white disabled:opacity-50"
+                  // USUNIĘTE: disabled={!!user}
+                  placeholder={user ? "Uzupełnij numer telefonu" : "Numer telefonu"}
+                  className="w-full p-3 rounded-lg bg-black/60 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-white placeholder-gray-400"
                   required
                 />
               </div>
@@ -456,8 +475,9 @@ Sprawdź email w celu potwierdzenia.`);
                   name="company"
                   value={formData.company}
                   onChange={handleChange}
-                  disabled={!!user}
-                  className="w-full p-3 rounded-lg bg-black/60 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-white disabled:opacity-50"
+                  // USUNIĘTE: disabled={!!user}
+                  placeholder={user ? "Uzupełnij nazwę firmy" : "Nazwa firmy"}
+                  className="w-full p-3 rounded-lg bg-black/60 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-white placeholder-gray-400"
                   required
                 />
               </div>
@@ -469,8 +489,9 @@ Sprawdź email w celu potwierdzenia.`);
                   name="nip"
                   value={formData.nip}
                   onChange={handleChange}
-                  disabled={!!user}
-                  className="w-full p-3 rounded-lg bg-black/60 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-white disabled:opacity-50"
+                  // USUNIĘTE: disabled={!!user}
+                  placeholder="NIP firmy (opcjonalnie)"
+                  className="w-full p-3 rounded-lg bg-black/60 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-white placeholder-gray-400"
                 />
               </div>
             </div>
@@ -481,14 +502,15 @@ Sprawdź email w celu potwierdzenia.`);
                 name="address"
                 value={formData.address}
                 onChange={handleChange}
-                disabled={!!user}
+                // USUNIĘTE: disabled={!!user}
                 rows="2"
-                className="w-full p-3 rounded-lg bg-black/60 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-white disabled:opacity-50"
+                placeholder={user ? "Uzupełnij adres firmy" : "Adres firmy"}
+                className="w-full p-3 rounded-lg bg-black/60 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-white placeholder-gray-400"
                 required
               />
             </div>
             
-            {/* Podsumowanie całej rezerwacji */}
+            {/* Podsumowanie całej rezerwacji z informacją o płatności */}
             <div className="mt-8 p-6 rounded-lg bg-black/60 border border-white/20">
               <h3 className="text-lg font-medium text-white mb-4">Podsumowanie rezerwacji</h3>
               
@@ -523,7 +545,7 @@ Sprawdź email w celu potwierdzenia.`);
                     )}
                   </div>
                   
-                  <div className="pt-4">
+                  <div className="pt-4 border-b border-white/10 pb-4">
                     <div className="text-xl font-bold flex justify-between text-white">
                       <span>Koszt całkowity:</span>
                       <span>{calculateTotal().toLocaleString()} zł</span>
@@ -531,6 +553,27 @@ Sprawdź email w celu potwierdzenia.`);
                     <p className="text-white/60 text-sm text-right mt-1">
                       ({selectedEquipment.daily_rate} zł × {calculateDays()} dni)
                     </p>
+                  </div>
+                  
+                  {/* Informacja o płatności */}
+                  <div className="pt-4">
+                    <div className="bg-blue-500/20 border border-blue-500/30 rounded-lg p-4">
+                      <h4 className="text-white font-medium mb-2 flex items-center">
+                        <span className="mr-2">💳</span>
+                        Następny krok: Bezpieczna płatność
+                      </h4>
+                      <p className="text-blue-200 text-sm">
+                        Po potwierdzeniu rezerwacji zostaniesz przekierowany do bezpiecznej płatności przez Stripe. 
+                        Akceptujemy karty płatnicze, BLIK i Przelewy24.
+                      </p>
+                      <div className="mt-2 flex items-center text-xs text-blue-300">
+                        <span>🔒 SSL</span>
+                        <span className="mx-2">•</span>
+                        <span>🛡️ PCI DSS</span>
+                        <span className="mx-2">•</span>
+                        <span>✅ Bezpieczne płatności</span>
+                      </div>
+                    </div>
                   </div>
                 </>
               )}
@@ -553,9 +596,19 @@ Sprawdź email w celu potwierdzenia.`);
               <button
                 onClick={handleSubmit}
                 disabled={submitting || !formData.firstName || !formData.lastName || !formData.email || !formData.phone || !formData.company || !formData.address}
-                className="bg-white hover:bg-gray-200 text-black font-medium px-6 py-2 rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-white hover:bg-gray-200 text-black font-medium px-6 py-2 rounded-full disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
               >
-                {submitting ? 'Składanie rezerwacji...' : 'Potwierdź rezerwację'}
+                {submitting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-black mr-2"></div>
+                    Składanie rezerwacji...
+                  </>
+                ) : (
+                  <>
+                    <span className="mr-2">💳</span>
+                    Potwierdź i przejdź do płatności
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -621,6 +674,7 @@ Sprawdź email w celu potwierdzenia.`);
                 <button 
                   onClick={() => {
                     localStorage.removeItem('token');
+                    localStorage.removeItem('user');
                     setUser(null);
                     window.location.reload();
                   }}
@@ -659,7 +713,7 @@ Sprawdź email w celu potwierdzenia.`);
                 Rezerwacja <span className="text-white">sprzętu budowlanego</span>
               </h1>
               <p className="text-white/80 text-lg">
-                Wybierz sprzęt, datę i szczegóły rezerwacji, aby rozpocząć swój projekt budowlany.
+                Wybierz sprzęt, datę i szczegóły rezerwacji, a następnie dokonaj bezpiecznej płatności.
               </p>
             </div>
             

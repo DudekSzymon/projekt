@@ -13,6 +13,8 @@ import bcrypt
 import os
 from contextlib import contextmanager
 
+# Importuj nasze middleware
+
 # Konfiguracja
 SECRET_KEY = os.getenv("SECRET_KEY", "spellbudex_secret_key_2025")
 ALGORITHM = "HS256"
@@ -28,10 +30,26 @@ Base = declarative_base()
 app = FastAPI(
     title="SpellBudex API",
     description="API dla wypożyczalni sprzętu budowlanego SpellBudex",
-    version="1.0.0"
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc"
 )
 
-# CORS middleware
+# ===== MIDDLEWARE SETUP =====
+
+# 1. Security Middleware (pierwszy - najważniejszy)
+#app.add_middleware(SecurityMiddleware)
+
+# 2. Custom CORS Middleware (drugi - obsługuje CORS)
+#app.add_middleware(CustomCORSMiddleware)
+
+# 3. Rate Limiting Middleware (trzeci - ogranicza ruch)
+#app.add_middleware(RateLimitMiddleware, calls=200, period=60)  # 200 requestów na minutę
+
+# 4. Auth Middleware (ostatni - sprawdza autoryzację)
+#app.add_middleware(AuthMiddleware)
+
+# ===== BACKUP CORS (na wszelki wypadek) =====
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
@@ -279,7 +297,21 @@ def deserialize_specifications(specs_str: str) -> dict:
 
 @app.get("/")
 async def root():
-    return {"message": "SpellBudex API - Wypożyczalnia Sprzętu Budowlanego"}
+    return {
+        "message": "SpellBudex API - Wypożyczalnia Sprzętu Budowlanego", 
+        "version": "1.0.0",
+        "status": "online",
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    return {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat(),
+        "database": "connected"
+    }
 
 # ===== AUTH ENDPOINTS =====
 
@@ -505,6 +537,7 @@ async def create_reservation(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    
     # Check if equipment exists and is available
     equipment = db.query(Equipment).filter(Equipment.id == reservation_data.equipment_id).first()
     if not equipment:
@@ -742,8 +775,8 @@ async def seed_data(db: Session = Depends(get_db)):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
-# ===== requirements.txt =====
+    
+    # ===== requirements.txt =====
 """
 fastapi==0.104.1
 uvicorn==0.24.0
