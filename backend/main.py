@@ -12,9 +12,12 @@ import jwt
 import bcrypt
 import os
 from contextlib import contextmanager
+from google.auth.transport import Request as google_request
+from google.oauth2 import id_token
+import json
 
 # Importuj nasze middleware
-
+#from middleware import AuthMiddleware, SecurityMiddleware, RateLimitMiddleware, CORSMiddleware
 # Konfiguracja
 SECRET_KEY = os.getenv("SECRET_KEY", "spellbudex_secret_key_2025")
 ALGORITHM = "HS256"
@@ -41,7 +44,7 @@ app = FastAPI(
 #app.add_middleware(SecurityMiddleware)
 
 # 2. Custom CORS Middleware (drugi - obsługuje CORS)
-#app.add_middleware(CustomCORSMiddleware)
+#app.add_middleware(CORSMiddleware)
 
 # 3. Rate Limiting Middleware (trzeci - ogranicza ruch)
 #app.add_middleware(RateLimitMiddleware, calls=200, period=60)  # 200 requestów na minutę
@@ -143,7 +146,13 @@ class UserCreate(BaseModel):
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
-
+class GoogleLoginRequest(BaseModel):
+    credential: str  # Google JWT token
+    
+class GoogleUserInfo(BaseModel):
+    email: str
+    name: str
+    picture: Optional[str] = None
 class UserResponse(BaseModel):
     id: int
     name: str
@@ -362,6 +371,61 @@ async def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
 async def get_current_user_info(current_user: User = Depends(get_current_user)):
     return current_user
 
+@app.post("/api/auth/google", response_model=Token)
+async def google_login(google_data: GoogleLoginRequest, db: Session = Depends(get_db)):
+    try:
+        # Weryfikuj Google token
+        # UWAGA: Zamień na swój prawdziwy Google Client ID
+        GOOGLE_CLIENT_ID = "433825777203-u14cioun47a3l0688rp2uf19mqti37b2.apps.googleusercontent.com"
+        
+        idinfo = id_token.verify_oauth2_token(
+            google_data.credential, 
+            google_requests.Request(), 
+            GOOGLE_CLIENT_ID
+        )
+        
+        # Wyciągnij dane użytkownika z tokenu Google
+        email = idinfo.get('email')
+        name = idinfo.get('name', '')
+        picture = idinfo.get('picture', '')
+        
+        if not email:
+            raise HTTPException(status_code=400, detail="Brak emaila w tokenie Google")
+        
+        # Sprawdź czy użytkownik już istnieje
+        user = db.query(User).filter(User.email == email).first()
+        
+        if not user:
+            # Utwórz nowego użytkownika
+            user = User(
+                name=name,
+                email=email,
+                phone="",  # Google nie daje telefonu
+                company="",
+                nip="",
+                address="",
+                hashed_password="",  # Brak hasła dla Google users
+                is_active=True
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+        
+        # Utwórz JWT token
+        access_token = create_access_token(data={"sub": user.email})
+        
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": user
+        }
+        
+    except ValueError as e:
+        # Google token jest nieprawidłowy
+        raise HTTPException(status_code=400, detail=f"Nieprawidłowy token Google: {str(e)}")
+    except Exception as e:
+        # Inny błąd
+        raise HTTPException(status_code=500, detail=f"Błąd serwera: {str(e)}")
 # ===== EQUIPMENT ENDPOINTS =====
 
 @app.get("/api/equipment", response_model=List[EquipmentResponse])
